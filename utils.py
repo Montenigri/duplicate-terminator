@@ -43,6 +43,16 @@ def get_all_files(directory):
     
     return absolute_file_paths
 
+def get_dict_of_hashes(file_paths):
+    """ Given a list of file paths, return a dictionary with file hashes as keys and lists of file paths as values. """
+    dict_of_hashes = {}
+    for file_path in file_paths:
+        file_hash = get_hash(file_path)
+        if file_hash in dict_of_hashes:
+            dict_of_hashes[file_hash].append(file_path)
+        else:
+            dict_of_hashes[file_hash] = [file_path]
+    return dict_of_hashes
 
 def find_duplicates(dict_of_hashes):
     """Given a dictionary of file hashes, return only the duplicates. Expects a dict with hash as key and list of file paths as values."""
@@ -61,18 +71,8 @@ def save_duplicates_to_file(duplicates_dict):
                 f.write(f"    {path}\n")
             f.write("\n")
 
-def get_dict_of_hashes(file_paths):
-    """ Given a list of file paths, return a dictionary with file hashes as keys and lists of file paths as values. """
-    dict_of_hashes = {}
-    for file_path in file_paths:
-        file_hash = get_hash(file_path)
-        if file_hash in dict_of_hashes:
-            dict_of_hashes[file_hash].append(file_path)
-        else:
-            dict_of_hashes[file_hash] = [file_path]
-    return dict_of_hashes
 
-
+# Extensions that can be helded by tkinter
 GOOD_EXTENSIONS = {
     # text
     '.txt',
@@ -99,3 +99,27 @@ def is_extension_good_to_open(file_path):
     """ Check if the file extension is in the predefined set of good extensions. """
     _, ext = os.path.splitext(file_path)
     return ext.lower() in GOOD_EXTENSIONS
+
+    
+def filter_files_by_extension():
+    """ Filter the duplicates list to include only files with good extensions. """
+    with open('duplicates.txt', 'r') as f:
+        lines = f.readlines()
+
+    duplicates_dict = {}
+    current_hash = None
+
+    for line in lines:
+        line = line.strip()
+        if line.startswith('Hash: '):
+            current_hash = line.replace('Hash: ', '')
+            duplicates_dict[current_hash] = []
+        elif line and current_hash and not line.startswith('Duplicate') and not line.startswith('Hash'):
+            duplicates_dict[current_hash].append(line)
+
+    filtered_duplicates = {
+        hash_value: [path for path in paths if is_extension_good_to_open(path)]
+        for hash_value, paths in duplicates_dict.items()
+    }
+
+    return {k: v for k, v in filtered_duplicates.items() if v}
