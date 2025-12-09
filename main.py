@@ -14,14 +14,14 @@ from PIL import ImageTk
 import os
 
 
-class comparisonWindow(customtkinter.CTkToplevel):
-    def __init__(self, duplicates_dict, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.title("Comparison Window")
+class ComparisonFrame(customtkinter.CTkFrame):
+    def __init__(self, master, duplicates_dict, on_close_callback=None, **kwargs):
+        super().__init__(master, **kwargs)
         self.duplicates_dict = duplicates_dict
         self.keys = list(duplicates_dict.keys())
         self.current_key_index = 0
         self.current_file_index = 0
+        self.on_close_callback = on_close_callback
         
         self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(0, weight=1)
@@ -31,13 +31,13 @@ class comparisonWindow(customtkinter.CTkToplevel):
         nav_frame = customtkinter.CTkFrame(master=self)
         nav_frame.grid(row=0, column=0, columnspan=2, padx=20, pady=10, sticky="ew")
         
-        self.prev_key_button = customtkinter.CTkButton(master=nav_frame, text="< Previous Hash", command=self.prev_key)
+        self.prev_key_button = customtkinter.CTkButton(master=nav_frame, text="< Previous File", command=self.prev_key)
         self.prev_key_button.pack(side="left", padx=10)
         
         self.key_label = customtkinter.CTkLabel(master=nav_frame, text="")
         self.key_label.pack(side="left", padx=10)
         
-        self.next_key_button = customtkinter.CTkButton(master=nav_frame, text="Next Hash >", command=self.next_key)
+        self.next_key_button = customtkinter.CTkButton(master=nav_frame, text="Next File >", command=self.next_key)
         self.next_key_button.pack(side="left", padx=10)
         
         # File display frames
@@ -67,6 +67,8 @@ class comparisonWindow(customtkinter.CTkToplevel):
             widget.destroy()
         
         if not self.keys or self.current_key_index >= len(self.keys):
+            if not self.keys and self.on_close_callback:
+                self.on_close_callback()
             return
         
         current_key = self.keys[self.current_key_index]
@@ -114,7 +116,8 @@ class comparisonWindow(customtkinter.CTkToplevel):
                     
                     # Se non ci sono più hash, chiudi la finestra
                     if not self.keys:
-                        self.destroy()
+                        if self.on_close_callback:
+                            self.on_close_callback()
                         return
                     
                     # Se siamo alla fine, vai all'hash precedente
@@ -151,83 +154,38 @@ class comparisonWindow(customtkinter.CTkToplevel):
         self.load_files()
 
 
-class ToplevelWindow(customtkinter.CTkToplevel):
-    def __init__(self,window_title, message, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.title(window_title if window_title is not None else "Duplicate Files")
-
-        self.grid_rowconfigure(0, weight=1)  # configure grid system
-        self.grid_columnconfigure(0, weight=1)
-
-        self.label = customtkinter.CTkLabel(master=self, text=message if message is not None else "Duplicates found.")
-        self.label.grid(row=0, column=0, padx=20, pady=20)
-
-        self.ok_button = customtkinter.CTkButton(master=self, text="OK", command=self.destroy)
-        self.ok_button.grid(row=1, column=0, padx=20, pady=20)
-
-        self.open_duplicates_button = customtkinter.CTkButton(master=self, text="Open Duplicates File", command=self.open_duplicates_file)
-        self.open_duplicates_button.grid(row=1, column=1, padx=20, pady=20)
-
-        self.label_for_open = customtkinter.CTkLabel(master=self, text="You can open some file directly from here and choose what to keep:")
-        self.label_for_open.grid(row=2, column=0, columnspan=2, padx=20, pady=10)
-
-        self.check_button = customtkinter.CTkButton(master=self, text="Check compatible Duplicates File", command=self.check_compability)
-        self.check_button.grid(row=3, column=0, columnspan=2, padx=20, pady=10)
-
-
-        self.there_is_a_match = False
-        self.filtered = None
-        self.start_comparison_button = customtkinter.CTkButton(master=self, text="Start Comparison", command=self.start_comparison)
-        self.start_comparison_button.grid(row=4, column=0, columnspan=2, padx=20, pady=10)
-        self.start_comparison_button.grid_remove()
-        
-
-    def open_duplicates_file(self):
-        import os
-        import platform
-        duplicates_file_path = os.path.abspath('duplicates.txt')
-        if platform.system() == 'Windows':
-            os.startfile(duplicates_file_path)
-        elif platform.system() == 'Darwin':  # macOS
-            os.system(f'open "{duplicates_file_path}"')
-        else:  # Linux and others
-            os.system(f'xdg-open "{duplicates_file_path}"')
-    def start_comparison(self):
-        if self.filtered:
-            comparison_window = comparisonWindow(duplicates_dict=self.filtered)
-    def check_compability(self):
-        filtered_files = filter_files_by_extension()
-        if filtered_files:
-            self.there_is_a_match = True
-            self.filtered = filtered_files
-            self.start_comparison_button.grid()  # Mostra il pulsante
-            self.label_for_open.configure(text="Compatible files found! Click 'Start Comparison' to review them.")
-        else:
-            self.there_is_a_match = False
-            self.start_comparison_button.grid_remove()  # Nasconde il pulsante
-            self.label_for_open.configure(text="No compatible files found for comparison.")
-        
-    
-        
-        
-
 class App(customtkinter.CTk):
     def __init__(self):
         super().__init__()
         self.title("Duplicate Terminator")
+        self.geometry("1200x800")
 
         self.grid_rowconfigure(0, weight=1)  # configure grid system
         self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=3) # Comparison area gets more space
         
-        self.directory_input_box = customtkinter.CTkEntry(master=self, placeholder_text="Select a directory to scan")
+        # Left Panel (Input + Results)
+        self.left_panel = customtkinter.CTkFrame(master=self)
+        self.left_panel.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.left_panel.grid_rowconfigure(2, weight=1) # Allow results to expand if needed
+        
+        # Input Section
+        self.directory_input_box = customtkinter.CTkEntry(master=self.left_panel, placeholder_text="Select a directory to scan")
         self.directory_input_box.configure(state="disabled")
-        self.directory_input_box.grid(row=0, column=0, padx=20, pady=20, sticky="ew")
+        self.directory_input_box.pack(padx=20, pady=(20, 10), fill="x")
 
-        self.select_directory_button = customtkinter.CTkButton(master=self, text="Select Directory", command=self.select_directory)
-        self.select_directory_button.grid(row=0, column=1, padx=20, pady=20)
+        self.select_directory_button = customtkinter.CTkButton(master=self.left_panel, text="Select Directory", command=self.select_directory)
+        self.select_directory_button.pack(padx=20, pady=10)
 
-        self.start_scan_button = customtkinter.CTkButton(master=self, text="Start Scan", command=self.start_scan)
-        self.start_scan_button.grid(row=1, column=0, columnspan=2, padx=20, pady=20)
+        self.start_scan_button = customtkinter.CTkButton(master=self.left_panel, text="Start Scan", command=self.start_scan)
+        self.start_scan_button.pack(padx=20, pady=10)
+        
+        # Results Section (Container)
+        self.results_frame = customtkinter.CTkFrame(master=self.left_panel, fg_color="transparent")
+        self.results_frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        self.comparison_frame = None
+        self.filtered = None
 
     
     def select_directory(self):
@@ -241,6 +199,13 @@ class App(customtkinter.CTk):
             self.directory_input_box.configure(state="disabled")
 
     def start_scan(self):
+        # Clear previous results
+        for widget in self.results_frame.winfo_children():
+            widget.destroy()
+        if self.comparison_frame:
+            self.comparison_frame.destroy()
+            self.comparison_frame = None
+
         directory = self.directory_input_box.get()
         try:
             file_paths = get_all_files(directory)
@@ -248,12 +213,68 @@ class App(customtkinter.CTk):
             duplicates = find_duplicates(dict_of_hashes)
             if duplicates:
                 save_duplicates_to_file(duplicates)
-                dup_window = ToplevelWindow(window_title="Duplicate Files Found", message="Duplicates have been found and saved to 'duplicates.txt'.")
+                self.show_results("Duplicates found.", duplicates_found=True)
             else:
-                dup_window = ToplevelWindow(window_title="No Duplicates Found", message="No duplicate files were found in the selected directory.")
+                self.show_results("No duplicate files were found.", duplicates_found=False)
                 
         except ValueError as ve:
-            dup_window = ToplevelWindow(window_title="Error", message=f"Error: {str(ve)}")
+            self.show_results(f"Error: {str(ve)}", duplicates_found=False)
+    
+    def show_results(self, message, duplicates_found=False):
+        label = customtkinter.CTkLabel(master=self.results_frame, text=message, wraplength=250)
+        label.pack(pady=10)
+
+        if duplicates_found:
+            open_btn = customtkinter.CTkButton(master=self.results_frame, text="Open Duplicates File", command=self.open_duplicates_file)
+            open_btn.pack(pady=10)
+
+            info_label = customtkinter.CTkLabel(master=self.results_frame, text="You can open some file directly from here and choose what to keep:", wraplength=250)
+            info_label.pack(pady=10)
+
+            check_btn = customtkinter.CTkButton(master=self.results_frame, text="Check compatible Duplicates File", command=self.check_compability)
+            check_btn.pack(pady=10)
+            
+            self.start_comparison_button = customtkinter.CTkButton(master=self.results_frame, text="Start Comparison", command=self.start_comparison)
+            # Button is created but not packed until check is done, similar to original logic
+
+    def open_duplicates_file(self):
+        import os
+        import platform
+        duplicates_file_path = os.path.abspath('duplicates.txt')
+        if platform.system() == 'Windows':
+            os.startfile(duplicates_file_path)
+        elif platform.system() == 'Darwin':  # macOS
+            os.system(f'open "{duplicates_file_path}"')
+        else:  # Linux and others
+            os.system(f'xdg-open "{duplicates_file_path}"')
+
+    def check_compability(self):
+        filtered_files = filter_files_by_extension()
+        if filtered_files:
+            self.filtered = filtered_files
+            self.start_comparison_button.pack(pady=10)
+            
+            lbl = customtkinter.CTkLabel(master=self.results_frame, text="Compatible files found! Click 'Start Comparison' to review them.", wraplength=250)
+            lbl.pack(pady=5)
+        else:
+            lbl = customtkinter.CTkLabel(master=self.results_frame, text="No compatible files found for comparison.", wraplength=250)
+            lbl.pack(pady=5)
+
+    def start_comparison(self):
+        if self.filtered:
+            if self.comparison_frame:
+                self.comparison_frame.destroy()
+            
+            self.comparison_frame = ComparisonFrame(master=self, duplicates_dict=self.filtered, on_close_callback=self.on_comparison_close)
+            self.comparison_frame.grid(row=0, column=1, sticky="nsew", padx=10, pady=10)
+
+    def on_comparison_close(self):
+        if self.comparison_frame:
+            self.comparison_frame.destroy()
+            self.comparison_frame = None
+        
+        lbl = customtkinter.CTkLabel(master=self.results_frame, text="Comparison finished.", wraplength=250)
+        lbl.pack(pady=5)
         
 
 app = App()
