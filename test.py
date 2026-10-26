@@ -7,7 +7,7 @@
 
 
 import os
-from utils import get_dict_of_hashes, find_duplicates, save_duplicates_to_file, get_all_files
+from utils import get_all_files, scan_for_duplicates, save_duplicates_to_file
 import time
 
 def gen_file(test_path,filename, content):
@@ -25,7 +25,7 @@ def argparse_args():
         '--num-files',
         type=int,
         default=10,
-        help='Number of test files to generate (default: 5)'
+        help='Number of test files to generate (default: 10)'
     )
     parser.add_argument(
         '--content',
@@ -58,7 +58,7 @@ def main():
         raise ValueError("Number of files must be at least 1.")
     
 
-    os.makedirs('test_files', exist_ok=True)
+    os.makedirs(args.test_dir, exist_ok=True)
     test_path = args.test_dir
     print(f"Generating {args.num_files} test files in directory: {test_path}")
     benchmark_start = time.time()
@@ -71,28 +71,24 @@ def main():
             content = args.content + "\nindex: " + str(i)
             gen_file(test_path, filename, content)
     print("File generation completed.\n")
-    print("Now testing the utils functions on the generated files...\n")
+    print("Now testing the utils pipeline on the generated files...\n")
 
 
     benchmark_for_retriving_files_start = time.time()
     file_paths = get_all_files(test_path)
     benchmark_for_retriving_files_end = time.time()
     print(f"Total files founded: {len(file_paths)}\n")
-    benchmark_for_getting_hashes_start = time.time()
-    dict_of_hashes = get_dict_of_hashes(file_paths)
-    benchmark_for_getting_hashes_end = time.time()
-    print(f"Total unique files (by hash): {len(dict_of_hashes)}\n")
-    benchmark_for_getting_duplicates_start = time.time()
-    duplicates = find_duplicates(dict_of_hashes)
-    benchmark_for_getting_duplicates_end = time.time()
+    benchmark_for_scan_start = time.time()
+    duplicates = scan_for_duplicates(test_path)
+    benchmark_for_scan_end = time.time()
     print(f"Total duplicates found: {len(duplicates)}\n")
     save_duplicates_to_file(duplicates)
     print("Duplicates saved to 'duplicates.txt'.")
 
-    
+
     benchmark_end = time.time()
     print(f"Benchmark time for {args.num_files} files: {benchmark_end - benchmark_start:.2f} seconds.")
-    print(f"Breakdown: \n - Retrieving files: {benchmark_for_retriving_files_end - benchmark_for_retriving_files_start:.2f} seconds.\n - Getting hashes: {benchmark_for_getting_hashes_end - benchmark_for_getting_hashes_start:.2f} seconds.\n - Finding duplicates: {benchmark_for_getting_duplicates_end - benchmark_for_getting_duplicates_start:.2f} seconds.\n")
+    print(f"Breakdown: \n - Retrieving files: {benchmark_for_retriving_files_end - benchmark_for_retriving_files_start:.2f} seconds.\n - Duplicate scan: {benchmark_for_scan_end - benchmark_for_scan_start:.2f} seconds.\n")
 
 if __name__ == "__main__":
     main()
